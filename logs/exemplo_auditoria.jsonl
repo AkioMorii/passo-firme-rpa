@@ -1,0 +1,7 @@
+{"momento": "2026-11-11T02:18:12+00:00", "execucao_id": "23cbffb57a78", "evento": "relato_processado", "relato_id": 101, "resultado": "encaminhado", "motivo": "triagem_automatica"}
+{"momento": "2026-11-11T02:18:12+00:00", "execucao_id": "23cbffb57a78", "evento": "relato_processado", "relato_id": 102, "resultado": "descartado", "motivo": "possivel_duplicidade_espacial_temporal"}
+{"momento": "2026-11-11T02:18:12+00:00", "execucao_id": "23cbffb57a78", "evento": "relato_processado", "relato_id": 103, "resultado": "revisao_humana", "motivo": "baixa_confianca"}
+{"momento": "2026-11-11T02:18:12+00:00", "execucao_id": "23cbffb57a78", "evento": "relato_processado", "relato_id": 104, "resultado": "revisao_humana", "motivo": "foto_ausente_ou_url_invalida,gps_fora_de_faixa"}
+{"momento": "2026-11-11T02:18:12+00:00", "execucao_id": "23cbffb57a78", "evento": "relato_processado", "relato_id": 105, "resultado": "encaminhado", "motivo": "triagem_automatica"}
+{"momento": "2026-11-11T02:18:12+00:00", "execucao_id": "23cbffb57a78", "evento": "resumo_execucao", "itens": 5, "sucessos": 5, "falhas": 0, "encaminhados": 2, "revisoes": 2, "descartados": 1}
+{"momento": "2026-11-11T02:18:12+00:00", "execucao_id": "ae43308a738c", "evento": "resumo_execucao", "itens": 0, "sucessos": 0, "falhas": 0, "encaminhados": 0, "revisoes": 0, "descartados": 0}

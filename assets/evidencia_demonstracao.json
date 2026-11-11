@@ -1,0 +1,49 @@
+{
+  "nota": "Demonstração local com dados inteiramente fictícios. Não comprova integração no MVP público.",
+  "primeira_execucao": {
+    "execucao_id": "a8b5860f8ab0",
+    "itens": 5,
+    "sucessos": 5,
+    "falhas": 0,
+    "encaminhados": 2,
+    "revisoes": 2,
+    "descartados": 1
+  },
+  "segunda_execucao_idempotente": {
+    "execucao_id": "d847fcbed039",
+    "itens": 0,
+    "sucessos": 0,
+    "falhas": 0,
+    "encaminhados": 0,
+    "revisoes": 0,
+    "descartados": 0
+  },
+  "status_apos_execucao": [
+    {
+      "id": 101,
+      "status": "encaminhado",
+      "prioridade": 85
+    },
+    {
+      "id": 102,
+      "status": "descartado",
+      "prioridade": null
+    },
+    {
+      "id": 103,
+      "status": "revisao_humana",
+      "prioridade": null
+    },
+    {
+      "id": 104,
+      "status": "revisao_humana",
+      "prioridade": null
+    },
+    {
+      "id": 105,
+      "status": "encaminhado",
+      "prioridade": 55
+    }
+  ],
+  "quantidade_chamadas_assistente": 2
+}

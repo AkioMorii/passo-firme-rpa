@@ -1,0 +1,45 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="white", pad="0.55", nodesep="0.5", ranksep="0.58", splines=polyline,
+         fontname="DejaVu Sans", fontsize=15, label="Passo Firme | Fluxo de triagem (BPMN simplificado)", labelloc=t,
+         dpi=170];
+  node [fontname="DejaVu Sans", fontsize=11, color="#203449", fontcolor="#18354B", penwidth=1.7];
+  edge [fontname="DejaVu Sans", fontsize=10, color="#526477", fontcolor="#526477", arrowsize=0.7];
+  start [shape=circle, width=0.58, height=0.58, fixedsize=true, style="filled", fillcolor="#DFF7EE", color="#078E69", label=""];
+  listar [shape=box, style="rounded,filled", fillcolor="#EAF2FA", color="#286496", margin="0.20,0.14", label="Buscar relatos via GET /relatos"];
+  fila [shape=diamond, width=2.15, height=1.05, style="filled", fillcolor="#FEF2D8", color="#C77E18", label="Há relatos novos?"];
+  validar [shape=box, style="rounded,filled", fillcolor="#EAF2FA", color="#286496", margin="0.20,0.14", label="Validar foto, GPS, classe e confiança"];
+  dados [shape=diamond, width=2.15, height=1.05, style="filled", fillcolor="#FEF2D8", color="#C77E18", label="Dados válidos?"];
+  duplicidade [shape=diamond, width=2.15, height=1.05, style="filled", fillcolor="#FEF2D8", color="#C77E18", label="Duplicado\nem 25 m\n/ 48 h?"];
+  confianca [shape=diamond, width=2.15, height=1.05, style="filled", fillcolor="#FEF2D8", color="#C77E18", label="Confiança >= 0,65?"];
+  priorizar [shape=box, style="rounded,filled", fillcolor="#EAF2FA", color="#286496", margin="0.20,0.14", label="Calcular prioridade"];
+  consultar [shape=box, style="rounded,filled", fillcolor="#EAF2FA", color="#286496", margin="0.20,0.14", label="Consultar POST /assistente"];
+  recusa [shape=diamond, width=2.15, height=1.05, style="filled", fillcolor="#FEF2D8", color="#C77E18", label="Assistente recusou?"];
+  encaminhar [shape=box, style="rounded,filled", fillcolor="#EAF2FA", color="#286496", margin="0.20,0.14", label="PATCH: encaminhado + canal simulado"];
+  revisar [shape=box, style="rounded,filled", fillcolor="#EAF2FA", color="#286496", margin="0.20,0.14", label="PATCH: revisão humana"];
+  descartar [shape=box, style="rounded,filled", fillcolor="#EAF2FA", color="#286496", margin="0.20,0.14", label="PATCH: descartado"];
+  auditar [shape=box, style="rounded,filled", fillcolor="#EAF2FA", color="#286496", margin="0.20,0.14", label="Auditar resultado e tratar erros"];
+  end [shape=doublecircle, width=0.58, height=0.58, fixedsize=true, style="filled", fillcolor="#FFE5E2", color="#BE423D", label=""];
+  start -> listar [id="Flow_1"];
+  listar -> fila [id="Flow_2"];
+  fila -> end [label="Não", id="Flow_3"];
+  fila -> validar [label="Sim", id="Flow_4"];
+  validar -> dados [id="Flow_5"];
+  dados -> revisar [label="Não", id="Flow_6"];
+  dados -> duplicidade [label="Sim", id="Flow_7"];
+  duplicidade -> descartar [label="Sim", id="Flow_8"];
+  duplicidade -> confianca [label="Não", id="Flow_9"];
+  confianca -> revisar [label="Não", id="Flow_10"];
+  confianca -> priorizar [label="Sim", id="Flow_11"];
+  priorizar -> consultar [id="Flow_12"];
+  consultar -> recusa [id="Flow_13"];
+  recusa -> revisar [label="Sim", id="Flow_14"];
+  recusa -> encaminhar [label="Não", id="Flow_15"];
+  encaminhar -> auditar [id="Flow_16"];
+  revisar -> auditar [id="Flow_17"];
+  descartar -> auditar [id="Flow_18"];
+  auditar -> fila [label="Próximo", constraint=false, minlen=1];
+  {rank=same; revisar; descartar}
+  note [shape=note, fontsize=10, color="#9BA8B6", fillcolor="#F5F8FB", style=filled,
+    label="HTTP: até 3 tentativas em erros temporários.\nFalha definitiva: auditoria e próximo item.\nDados fictícios; sem acionamento real do SP156."];
+  note -> auditar [style=dotted, arrowhead=none, constraint=false];
+}

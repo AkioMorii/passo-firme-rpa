@@ -1,0 +1,18 @@
+test_api_intermitente_tenta_novamente (test_integration.TestIntegracao.test_api_intermitente_tenta_novamente) ... ok
+test_assistente_fora_do_ar_nao_interrompe_lote (test_integration.TestIntegracao.test_assistente_fora_do_ar_nao_interrompe_lote) ... ok
+test_logs_nao_contem_gps_ou_urls (test_integration.TestIntegracao.test_logs_nao_contem_gps_ou_urls) ... ok
+test_lote_completo_e_idempotencia (test_integration.TestIntegracao.test_lote_completo_e_idempotencia) ... ok
+test_patch_com_falha_nao_interrompe_outros (test_integration.TestIntegracao.test_patch_com_falha_nao_interrompe_outros) ... ok
+test_confianca_baixa_detectada (test_rules.TestRegras.test_confianca_baixa_detectada) ... ok
+test_distantes_nao_duplicados (test_rules.TestRegras.test_distantes_nao_duplicados) ... ok
+test_foto_e_gps_invalidos (test_rules.TestRegras.test_foto_e_gps_invalidos) ... ok
+test_menor_que_25_metros_e_mesma_classe_duplicado (test_rules.TestRegras.test_menor_que_25_metros_e_mesma_classe_duplicado) ... ok
+test_prazo_maior_que_48_horas_nao_duplicado (test_rules.TestRegras.test_prazo_maior_que_48_horas_nao_duplicado) ... ok
+test_prioridade_buraco_alta (test_rules.TestRegras.test_prioridade_buraco_alta) ... ok
+test_prioridade_obstaculo_media (test_rules.TestRegras.test_prioridade_obstaculo_media) ... ok
+test_relato_valido (test_rules.TestRegras.test_relato_valido) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 2.570s
+
+OK

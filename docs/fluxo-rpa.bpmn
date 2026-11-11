@@ -1,0 +1,217 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_PassoFirme" targetNamespace="https://passofirme.example/rpa" exporter="Passo Firme RPA" exporterVersion="1.0">
+  <bpmn:process id="Process_Triagem" name="Triagem automática de relatos de calçada" isExecutable="false">
+    <bpmn:startEvent id="Start_1" name="Início">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Activity_listar" name="Buscar relatos via GET /relatos">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_fila" name="Há relatos novos?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+      <bpmn:incoming>Flow_19</bpmn:incoming>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Activity_validar" name="Validar foto, GPS, classe e confiança">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_dados" name="Dados válidos?">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_duplicidade" name="Duplicado em 25 m / 48 h?">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_confianca" name="Confiança &gt;= 0,65?">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Activity_priorizar" name="Calcular prioridade">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Activity_consultar" name="Consultar POST /assistente">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:outgoing>Flow_13</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_recusa" name="Assistente recusou?">
+      <bpmn:incoming>Flow_13</bpmn:incoming>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+      <bpmn:outgoing>Flow_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Activity_encaminhar" name="PATCH: encaminhado + canal simulado">
+      <bpmn:incoming>Flow_15</bpmn:incoming>
+      <bpmn:outgoing>Flow_16</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Activity_revisar" name="PATCH: revisão humana">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:incoming>Flow_14</bpmn:incoming>
+      <bpmn:outgoing>Flow_17</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Activity_descartar" name="PATCH: descartado">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_18</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Activity_auditar" name="Auditar resultado e tratar erros">
+      <bpmn:incoming>Flow_16</bpmn:incoming>
+      <bpmn:incoming>Flow_17</bpmn:incoming>
+      <bpmn:incoming>Flow_18</bpmn:incoming>
+      <bpmn:outgoing>Flow_19</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_1" name="Fim do lote">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Activity_listar" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Activity_listar" targetRef="Gateway_fila" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Gateway_fila" targetRef="End_1" name="Não" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Gateway_fila" targetRef="Activity_validar" name="Sim" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Activity_validar" targetRef="Gateway_dados" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Gateway_dados" targetRef="Activity_revisar" name="Não" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Gateway_dados" targetRef="Gateway_duplicidade" name="Sim" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Gateway_duplicidade" targetRef="Activity_descartar" name="Sim" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Gateway_duplicidade" targetRef="Gateway_confianca" name="Não" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Gateway_confianca" targetRef="Activity_revisar" name="Não" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Gateway_confianca" targetRef="Activity_priorizar" name="Sim" />
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Activity_priorizar" targetRef="Activity_consultar" />
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="Activity_consultar" targetRef="Gateway_recusa" />
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="Gateway_recusa" targetRef="Activity_revisar" name="Sim" />
+    <bpmn:sequenceFlow id="Flow_15" sourceRef="Gateway_recusa" targetRef="Activity_encaminhar" name="Não" />
+    <bpmn:sequenceFlow id="Flow_16" sourceRef="Activity_encaminhar" targetRef="Activity_auditar" />
+    <bpmn:sequenceFlow id="Flow_17" sourceRef="Activity_revisar" targetRef="Activity_auditar" />
+    <bpmn:sequenceFlow id="Flow_18" sourceRef="Activity_descartar" targetRef="Activity_auditar" />
+    <bpmn:sequenceFlow id="Flow_19" sourceRef="Activity_auditar" targetRef="Gateway_fila" name="Próximo" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_Triagem">
+      <bpmndi:BPMNShape id="Shape_start" bpmnElement="Start_1">
+        <dc:Bounds x="743.33456" y="83.34415999999993" width="55.99968" height="55.99968" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_listar" bpmnElement="Activity_listar">
+        <dc:Bounds x="638.0" y="196.68800000000005" width="266.66880000000003" height="48.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_fila" bpmnElement="Gateway_fila">
+        <dc:Bounds x="657.9728" y="302.01920000000007" width="226.7232" height="101.33760000000001" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_validar" bpmnElement="Activity_validar">
+        <dc:Bounds x="536.672" y="483.3440000000001" width="306.6624" height="48.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_dados" bpmnElement="Gateway_dados">
+        <dc:Bounds x="586.6687999999999" y="598.0832" width="206.6688" height="101.33760000000001" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_duplicidade" bpmnElement="Gateway_duplicidade">
+        <dc:Bounds x="422.66240000000005" y="770.0384000000001" width="206.6688" height="101.33760000000001" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_confianca" bpmnElement="Gateway_confianca">
+        <dc:Bounds x="402.8624" y="942.0416000000001" width="246.2688" height="101.33760000000001" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_priorizar" bpmnElement="Activity_priorizar">
+        <dc:Bounds x="367.3328" y="1114.0448000000001" width="175.9968" height="48.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_consultar" bpmnElement="Activity_consultar">
+        <dc:Bounds x="308.0048" y="1232.7104" width="238.66559999999998" height="48.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_recusa" bpmnElement="Gateway_recusa">
+        <dc:Bounds x="311.5808" y="1338.0416" width="250.176" height="101.33760000000001" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_encaminhar" bpmnElement="Activity_encaminhar">
+        <dc:Bounds x="274.66880000000003" y="1510.0448000000001" width="324.0" height="48.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_revisar" bpmnElement="Activity_revisar">
+        <dc:Bounds x="646.664" y="1510.0448000000001" width="211.9968" height="48.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_descartar" bpmnElement="Activity_descartar">
+        <dc:Bounds x="50.00192" y="1510.0448000000001" width="175.9968" height="48.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_auditar" bpmnElement="Activity_auditar">
+        <dc:Bounds x="302.0" y="1615.3760000000002" width="269.3376" height="48.0" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end" bpmnElement="End_1">
+        <dc:Bounds x="891.33248" y="474.0108800000001" width="66.66623999999999" height="66.66623999999999" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_1" bpmnElement="Flow_1">
+        <di:waypoint x="771.3344" y="111.34399999999994" />
+        <di:waypoint x="771.3344" y="220.68800000000005" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_2" bpmnElement="Flow_2">
+        <di:waypoint x="771.3344" y="220.68800000000005" />
+        <di:waypoint x="771.3344" y="352.68800000000005" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_3" bpmnElement="Flow_3">
+        <di:waypoint x="771.3344" y="352.68800000000005" />
+        <di:waypoint x="924.6656" y="507.3440000000001" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_4" bpmnElement="Flow_4">
+        <di:waypoint x="771.3344" y="352.68800000000005" />
+        <di:waypoint x="690.0032" y="507.3440000000001" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_5" bpmnElement="Flow_5">
+        <di:waypoint x="690.0032" y="507.3440000000001" />
+        <di:waypoint x="690.0032" y="648.752" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_6" bpmnElement="Flow_6">
+        <di:waypoint x="690.0032" y="648.752" />
+        <di:waypoint x="752.6623999999999" y="1534.0448000000001" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_7" bpmnElement="Flow_7">
+        <di:waypoint x="690.0032" y="648.752" />
+        <di:waypoint x="525.9968" y="820.7072000000002" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_8" bpmnElement="Flow_8">
+        <di:waypoint x="525.9968" y="820.7072000000002" />
+        <di:waypoint x="138.00032" y="1534.0448000000001" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_9" bpmnElement="Flow_9">
+        <di:waypoint x="525.9968" y="820.7072000000002" />
+        <di:waypoint x="525.9968" y="992.7104" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_10" bpmnElement="Flow_10">
+        <di:waypoint x="525.9968" y="992.7104" />
+        <di:waypoint x="752.6623999999999" y="1534.0448000000001" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_11" bpmnElement="Flow_11">
+        <di:waypoint x="525.9968" y="992.7104" />
+        <di:waypoint x="455.33119999999997" y="1138.0448000000001" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_12" bpmnElement="Flow_12">
+        <di:waypoint x="455.33119999999997" y="1138.0448000000001" />
+        <di:waypoint x="427.3376" y="1256.7104" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_13" bpmnElement="Flow_13">
+        <di:waypoint x="427.3376" y="1256.7104" />
+        <di:waypoint x="436.66880000000003" y="1388.7104" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_14" bpmnElement="Flow_14">
+        <di:waypoint x="436.66880000000003" y="1388.7104" />
+        <di:waypoint x="752.6623999999999" y="1534.0448000000001" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_15" bpmnElement="Flow_15">
+        <di:waypoint x="436.66880000000003" y="1388.7104" />
+        <di:waypoint x="436.66880000000003" y="1534.0448000000001" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_16" bpmnElement="Flow_16">
+        <di:waypoint x="436.66880000000003" y="1534.0448000000001" />
+        <di:waypoint x="436.66880000000003" y="1639.3760000000002" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_17" bpmnElement="Flow_17">
+        <di:waypoint x="752.6623999999999" y="1534.0448000000001" />
+        <di:waypoint x="436.66880000000003" y="1639.3760000000002" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_18" bpmnElement="Flow_18">
+        <di:waypoint x="138.00032" y="1534.0448000000001" />
+        <di:waypoint x="436.66880000000003" y="1639.3760000000002" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_19" bpmnElement="Flow_19">
+        <di:waypoint x="436.66880000000003" y="1639.3760000000002" />
+        <di:waypoint x="771.3344" y="352.68800000000005" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

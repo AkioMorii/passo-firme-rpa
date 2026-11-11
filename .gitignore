@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.env
+*.log
+logs/auditoria.jsonl
+outbox/*.json
+!outbox/.gitkeep
+.DS_Store
