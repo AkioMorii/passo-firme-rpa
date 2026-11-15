@@ -9,8 +9,6 @@ O Passo Firme é uma iniciativa para mapear e priorizar problemas nas calçadas 
 - Pedro Henrique Alves Guariente — RM550301
 - Orlando Akio Morii Cardoso — RM98067
 
-> Os nomes acima são os publicados no README do repositório principal. Confirmar a composição oficial da equipe de RPA antes da entrega.
-
 ## 1. Como o robô funciona
 
 O robô busca relatos pendentes pela API do projeto, verifica a localização e as detecções, procura possíveis duplicatas e avalia a prioridade de atendimento. Quando necessário, consulta a rota do assistente para obter uma orientação e a respectiva fonte. Registros inválidos ou incertos vão para revisão humana.
