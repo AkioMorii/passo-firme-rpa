@@ -1,109 +1,119 @@
-"""API local de demonstração. Dados fictícios; não abre chamados reais."""
+"""Simula o contrato público EXATO da API FastAPI v0, sem PostgreSQL ou nuvem."""
 from __future__ import annotations
-
 import json
 from copy import deepcopy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
-DADOS_EXEMPLO = [
-    {"id": 101, "criado_em": "2026-11-10T09:00:00-03:00", "foto_url": "https://example.org/fotos/ficticias/101.jpg",
-     "lat": -23.550500, "lon": -46.633300, "distrito": "Distrito Exemplo", "status": "recebido",
-     "deteccoes": [{"classe": "buraco", "confianca": 0.95}]},
-    {"id": 102, "criado_em": "2026-11-10T09:10:00-03:00", "foto_url": "https://example.org/fotos/ficticias/102.jpg",
-     "lat": -23.550508, "lon": -46.633305, "distrito": "Distrito Exemplo", "status": "recebido",
-     "deteccoes": [{"classe": "buraco", "confianca": 0.91}]},
-    {"id": 103, "criado_em": "2026-11-10T09:20:00-03:00", "foto_url": "https://example.org/fotos/ficticias/103.jpg",
-     "lat": -23.552000, "lon": -46.633300, "distrito": "Distrito Exemplo", "status": "recebido",
-     "deteccoes": [{"classe": "degrau", "confianca": 0.44}]},
-    {"id": 104, "criado_em": "2026-11-10T09:30:00-03:00", "foto_url": "",
-     "lat": -123.0, "lon": -46.63000, "distrito": "Distrito Exemplo", "status": "recebido",
-     "deteccoes": [{"classe": "obstaculo", "confianca": 0.90}]},
-    {"id": 105, "criado_em": "2026-11-10T09:40:00-03:00", "foto_url": "https://example.org/fotos/ficticias/105.jpg",
-     "lat": -23.553500, "lon": -46.634200, "distrito": "Distrito Exemplo", "status": "recebido",
-     "deteccoes": [{"classe": "obstaculo", "confianca": 0.88}]},
+DADOS = [
+    {"id":101,"criado_em":"2026-11-10T09:00:00-03:00","lat":-23.5505,"lon":-46.6333,"distrito":"Exemplo","descricao":"Dados fictícios", "status":"recebido","prioridade":None,"deteccoes":[{"classe":"buraco","confianca":.95,"caixa":[.1,.1,.2,.2]}]},
+    {"id":102,"criado_em":"2026-11-10T09:10:00-03:00","lat":-23.5505,"lon":-46.6333,"distrito":"Exemplo","descricao":"Dados fictícios", "status":"recebido","prioridade":None,"deteccoes":[{"classe":"buraco","confianca":.91,"caixa":[.1,.1,.2,.2]}]},
+    {"id":103,"criado_em":"2026-11-10T09:20:00-03:00","lat":-23.5520,"lon":-46.6333,"distrito":"Exemplo","descricao":"Dados fictícios", "status":"recebido","prioridade":None,"deteccoes":[{"classe":"degrau_desnivel","confianca":.44,"caixa":[.1,.1,.2,.2]}]},
+    {"id":104,"criado_em":"2026-11-10T09:30:00-03:00","lat":-23.5530,"lon":-46.6323,"distrito":"Exemplo","descricao":"Dados fictícios", "status":"recebido","prioridade":None,"deteccoes":[]},
+    {"id":105,"criado_em":"2026-11-10T09:40:00-03:00","lat":-23.5550,"lon":-46.6350,"distrito":"Exemplo","descricao":"Dados fictícios", "status":"recebido","prioridade":None,"deteccoes":[{"classe":"obstaculo","confianca":.88,"caixa":[.1,.1,.2,.2]}]},
 ]
+TRANSICOES = {
+    "recebido": {"em_triagem", "revisao_humana", "descartado"},
+    "em_triagem": {"encaminhado", "revisao_humana", "descartado"},
+    "revisao_humana": {"em_triagem", "encaminhado", "descartado"},
+    "encaminhado": {"resolvido"}, "resolvido": set(), "descartado": set(),
+}
 
-
-class EstadoAPI:
+class Estado:
     def __init__(self, dados=None):
-        self.relatos = deepcopy(DADOS_EXEMPLO if dados is None else dados)
-        self.falhar_assistente = False
-        self.falhar_patch_ids = set()
-        self.falhar_get_vezes = 0
-        self.quantidade_get = 0
-        self.quantidade_assistente = 0
+        self.relatos = deepcopy(DADOS if dados is None else dados)
+        self.encaminhamentos = []
+        self.assistente_foradoar = False
+        self.get_falhas = 0
+        self.patch_falha_status = None
+        self.get_calls = 0
+        self.patch_calls = 0
 
 
-def criar_servidor(host="127.0.0.1", port=8765, estado=None):
-    estado = estado or EstadoAPI()
-
+def criar_servidor(host="127.0.0.1", port=0, estado=None):
+    estado = estado or Estado()
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
-            return
+            pass
 
-        def _responder(self, codigo, dados):
-            corpo = json.dumps(dados, ensure_ascii=False).encode("utf-8")
-            self.send_response(codigo)
+        def responder(self, status, obj):
+            data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(corpo)))
+            self.send_header("Content-Length", str(len(data)))
             self.end_headers()
-            self.wfile.write(corpo)
+            self.wfile.write(data)
 
-        def _ler_json(self):
+        def corpo(self):
             try:
-                tamanho = int(self.headers.get("Content-Length", "0"))
-                if tamanho > 1024 * 1024:
+                n = int(self.headers.get("Content-Length", 0))
+                if n > 10_000:
                     return None
-                return json.loads(self.rfile.read(tamanho).decode("utf-8"))
-            except (ValueError, UnicodeDecodeError):
+                return json.loads(self.rfile.read(n).decode("utf-8"))
+            except (TypeError, ValueError, UnicodeDecodeError):
                 return None
 
         def do_GET(self):
-            if urlsplit(self.path).path == "/relatos":
-                estado.quantidade_get += 1
-                if estado.falhar_get_vezes:
-                    estado.falhar_get_vezes -= 1
-                    return self._responder(503, {"erro": "temporariamente_indisponivel"})
-                return self._responder(200, {"relatos": estado.relatos})
-            return self._responder(404, {"erro": "rota_nao_encontrada"})
+            parsed = urlsplit(self.path)
+            if parsed.path == "/health":
+                return self.responder(200, {"status":"ok","banco":"ok","versao":"simulado"})
+            if parsed.path != "/relatos":
+                return self.responder(404, {"detail":"Not Found"})
+            estado.get_calls += 1
+            if estado.get_falhas:
+                estado.get_falhas -= 1
+                return self.responder(503, {"detail":"indisponivel"})
+            q = parse_qs(parsed.query)
+            filtro = q.get("status", [None])[0]
+            try:
+                limite = int(q.get("limite", ["50"])[0])
+            except ValueError:
+                return self.responder(422, {"detail":"limite invalido"})
+            if not 1 <= limite <= 200 or (filtro and filtro not in TRANSICOES):
+                return self.responder(422, {"detail":"parametro invalido"})
+            items = [r for r in estado.relatos if not filtro or r["status"] == filtro]
+            items.sort(key=lambda r:r["criado_em"], reverse=True)
+            return self.responder(200, items[:limite])
 
         def do_POST(self):
             if urlsplit(self.path).path != "/assistente":
-                return self._responder(404, {"erro": "rota_nao_encontrada"})
-            payload = self._ler_json()
-            if not isinstance(payload, dict) or "pergunta" not in payload:
-                return self._responder(400, {"erro": "requisicao_invalida"})
-            estado.quantidade_assistente += 1
-            if estado.falhar_assistente:
-                return self._responder(503, {"erro": "assistente_indisponivel"})
-            # Resposta sintética. Não afirma uma interpretação jurídica verdadeira.
-            return self._responder(200, {
-                "resposta": "Orientacao demonstrativa: encaminhar para triagem administrativa; confirmar a responsabilidade com fonte oficial.",
-                "fontes": ["Base demonstrativa: verificar Lei Municipal 15.442/2011 e servico SP156"],
-                "recusa": False,
-            })
+                return self.responder(404, {"detail":"Not Found"})
+            body = self.corpo()
+            if not isinstance(body, dict) or not isinstance(body.get("pergunta"), str):
+                return self.responder(422, {"detail":"pergunta invalida"})
+            if estado.assistente_foradoar:
+                return self.responder(503, {"detail":"indisponivel"})
+            if "calçada" in body["pergunta"].lower():
+                return self.responder(200, {"resposta":"Em São Paulo, a manutenção da calçada cabe ao proprietário do imóvel.",
+                    "fontes":[{"titulo":"Lei Municipal 15.442/2011", "trecho":"Responsabilidade pela calçada"}],
+                    "recusa":False,"modelo":"simulado-v0"})
+            return self.responder(200, {"resposta":"Não encontrei resposta.","fontes":[],"recusa":True,"modelo":"simulado-v0"})
 
         def do_PATCH(self):
-            caminho = urlsplit(self.path).path.strip("/").split("/")
-            if len(caminho) != 3 or caminho[0] != "relatos" or caminho[2] != "status":
-                return self._responder(404, {"erro": "rota_nao_encontrada"})
-            try:
-                id_relato = int(caminho[1])
-            except ValueError:
-                return self._responder(400, {"erro": "id_invalido"})
-            if id_relato in estado.falhar_patch_ids:
-                return self._responder(503, {"erro": "falha_simulada_patch"})
-            payload = self._ler_json()
-            if not isinstance(payload, dict) or payload.get("status") not in {"revisao_humana", "descartado", "encaminhado"}:
-                return self._responder(400, {"erro": "status_invalido"})
-            for relato in estado.relatos:
-                if relato.get("id") == id_relato:
-                    if relato["status"] != "recebido":
-                        return self._responder(409, {"erro": "relato_ja_processado"})
-                    relato.update(payload)
-                    return self._responder(200, {"id": id_relato, "status": relato["status"]})
-            return self._responder(404, {"erro": "relato_nao_encontrado"})
-
-    server = ThreadingHTTPServer((host, port), Handler)
-    return server, estado
+            partes = urlsplit(self.path).path.strip("/").split("/")
+            if len(partes)!=3 or partes[0]!="relatos" or partes[2]!="status" or not partes[1].isdigit():
+                return self.responder(404, {"detail":"Not Found"})
+            body = self.corpo()
+            if not isinstance(body,dict):
+                return self.responder(422, {"detail":"JSON invalido"})
+            status = body.get("status")
+            p = body.get("prioridade")
+            if (status not in TRANSICOES or (p is not None and (not isinstance(p, int) or not 1 <= p <= 5))
+                    or any(k not in {"status","prioridade","responsavel","base_legal"} for k in body)):
+                return self.responder(422,{"detail":"payload invalido"})
+            ident = int(partes[1]); relato = next((r for r in estado.relatos if r["id"] == ident), None)
+            if relato is None:
+                return self.responder(404,{"detail":"Relato não encontrado"})
+            if status != relato["status"] and status not in TRANSICOES[relato["status"]]:
+                return self.responder(409,{"detail":"Transição não permitida"})
+            estado.patch_calls += 1
+            if estado.patch_falha_status == status:
+                return self.responder(503,{"detail":"indisponivel"})
+            if p is not None:
+                relato["prioridade"] = p
+            if status == "encaminhado" and body.get("responsavel"):
+                estado.encaminhamentos.append({"relato_id":ident,"responsavel":body["responsavel"],
+                                              "base_legal":body.get("base_legal"), "protocolo_simulado":f"SIM-{ident}"})
+            relato["status"] = status
+            return self.responder(200, relato)
+    return ThreadingHTTPServer((host, port), Handler), estado

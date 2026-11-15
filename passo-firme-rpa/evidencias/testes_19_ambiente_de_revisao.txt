@@ -1,0 +1,30 @@
+test_api_503_get_retenta (test_integration.TestIntegracaoContratoReal.test_api_503_get_retenta) ... ok
+test_assistente_indisponivel_registra_erros (test_integration.TestIntegracaoContratoReal.test_assistente_indisponivel_registra_erros) ... ok
+test_assistente_objetos_de_fonte (test_integration.TestIntegracaoContratoReal.test_assistente_objetos_de_fonte) ... ok
+test_dry_run_nao_escreve (test_integration.TestIntegracaoContratoReal.test_dry_run_nao_escreve) ... ok
+test_falha_posterior_em_triagem_identificada (test_integration.TestIntegracaoContratoReal.test_falha_posterior_em_triagem_identificada) ... ok
+test_get_real_retorna_lista (test_integration.TestIntegracaoContratoReal.test_get_real_retorna_lista) ... ok
+test_logs_sem_gps (test_integration.TestIntegracaoContratoReal.test_logs_sem_gps) ... ok
+test_prioridade_escala_antiga_85_rejeitada (test_integration.TestIntegracaoContratoReal.test_prioridade_escala_antiga_85_rejeitada) ... ok
+test_segunda_execucao_idempotente (test_integration.TestIntegracaoContratoReal.test_segunda_execucao_idempotente) ... ok
+test_status_direto_recebido_encaminhado_nao_permitido (test_integration.TestIntegracaoContratoReal.test_status_direto_recebido_encaminhado_nao_permitido) ... ok
+test_transicoes_automaticas (test_integration.TestIntegracaoContratoReal.test_transicoes_automaticas) ... /usr/lib/python3.13/threading.py:281: ResourceWarning: unclosed <socket.socket [closed] fd=4, family=2, type=1, proto=6>
+  def __init__(self, lock=None):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/threading.py:281: ResourceWarning: unclosed <socket.socket [closed] fd=5, family=2, type=1, proto=6>
+  def __init__(self, lock=None):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_classe_real_e_confianca (test_rules.TestRegrasContratoReal.test_classe_real_e_confianca) ... ok
+test_duplicado_distante_nao_descarta (test_rules.TestRegrasContratoReal.test_duplicado_distante_nao_descarta) ... ok
+test_duplicado_menos_25m (test_rules.TestRegrasContratoReal.test_duplicado_menos_25m) ... ok
+test_janela_48h (test_rules.TestRegrasContratoReal.test_janela_48h) ... ok
+test_latitude_invalida (test_rules.TestRegrasContratoReal.test_latitude_invalida) ... ok
+test_pontuacao_1_a_5 (test_rules.TestRegrasContratoReal.test_pontuacao_1_a_5) ... ok
+test_sem_deteccao_revisar (test_rules.TestRegrasContratoReal.test_sem_deteccao_revisar) ... ok
+test_sem_foto_url_retorna_valido (test_rules.TestRegrasContratoReal.test_sem_foto_url_retorna_valido) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 5.675s
+
+OK

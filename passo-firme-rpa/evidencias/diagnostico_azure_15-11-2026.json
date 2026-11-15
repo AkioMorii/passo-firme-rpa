@@ -1,0 +1,22 @@
+{
+  "base_url": "https://ca-passofirme-api.lemonfield-b3da2f2c.brazilsouth.azurecontainerapps.io",
+  "saude": "ok",
+  "banco": "ok",
+  "get_relatos": "lista_valida",
+  "amostra_encontrada": true,
+  "campos_do_primeiro_relato": [
+    "criado_em",
+    "descricao",
+    "deteccoes",
+    "distrito",
+    "id",
+    "lat",
+    "lon",
+    "prioridade",
+    "status"
+  ],
+  "assistente": "contrato_valido",
+  "assistente_recusou": false,
+  "fontes_estruturadas": true,
+  "escritas_realizadas": 0
+}

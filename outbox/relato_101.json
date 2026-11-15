@@ -1,0 +1,13 @@
+{
+  "relato_id": 101,
+  "status": "encaminhado",
+  "prioridade": 85,
+  "faixa_prioridade": "alta",
+  "distrito": "Distrito Exemplo",
+  "fontes_assistente": [
+    "Base demonstrativa: verificar Lei Municipal 15.442/2011 e servico SP156"
+  ],
+  "canal": "simulado",
+  "integracao": "arquivo_estruturado",
+  "protocolo_simulado": "DEMO-101"
+}

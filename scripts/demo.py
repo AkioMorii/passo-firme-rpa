@@ -1,10 +1,9 @@
-"""Demonstração ponta a ponta local, gerando evidências reais em assets/ e logs/."""
+"""Demo local que executa dois lotes, verifica as transições e salva evidência."""
 from __future__ import annotations
 import json
 import sys
 import threading
 from pathlib import Path
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from rpa.api import APIClient
@@ -13,34 +12,24 @@ from rpa.robot import RoboTriagem
 
 
 def main():
-    servidor, estado = criar_servidor(port=0)
+    servidor, estado = criar_servidor()
     thread = threading.Thread(target=servidor.serve_forever, daemon=True)
     thread.start()
     try:
-        root_logs = ROOT / "logs"
-        root_saida = ROOT / "outbox"
-        (ROOT / "assets").mkdir(exist_ok=True)
-        cliente = APIClient(f"http://127.0.0.1:{servidor.server_port}", tentativas=3, espera=0.01)
-        robot = RoboTriagem(cliente, root_logs, root_saida)
-        resumo = robot.executar()
-        segunda_rodada = RoboTriagem(cliente, root_logs, root_saida).executar()
-        status = [{"id": v["id"], "status": v["status"], "prioridade": v.get("prioridade")}
-                  for v in estado.relatos]
-        evidencia = {
-            "nota": "Demonstração local com dados inteiramente fictícios. Não comprova integração no MVP público.",
-            "primeira_execucao": resumo,
-            "segunda_execucao_idempotente": segunda_rodada,
-            "status_apos_execucao": status,
-            "quantidade_chamadas_assistente": estado.quantidade_assistente,
-        }
-        (ROOT / "assets" / "evidencia_demonstracao.json").write_text(
-            json.dumps(evidencia, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(json.dumps(evidencia, ensure_ascii=False, indent=2))
+        api = APIClient(f"http://127.0.0.1:{servidor.server_port}", espera=.01)
+        primeiro = RoboTriagem(api, ROOT/"logs", aplicar=True).executar()
+        segundo = RoboTriagem(api, ROOT/"logs", aplicar=True).executar()
+        resultado = {"api": "mock-v0-contratual", "aviso": "DADOS FICTÍCIOS: não comprova integração Azure",
+                     "primeira_execucao":primeiro,"segunda_execucao":segundo,
+                     "status_finais":[{"id":r["id"],"status":r["status"],"prioridade":r.get("prioridade")} for r in estado.relatos],
+                     "encaminhamentos_simulados":estado.encaminhamentos}
+        (ROOT/"assets").mkdir(exist_ok=True)
+        (ROOT/"assets"/"evidencia-api-v0.json").write_text(json.dumps(resultado,indent=2,ensure_ascii=False),encoding="utf-8")
+        print(json.dumps(resultado,indent=2,ensure_ascii=False))
     finally:
         servidor.shutdown()
-        thread.join(timeout=3)
+        thread.join(timeout=5)
         servidor.server_close()
-
 
 if __name__ == "__main__":
     main()

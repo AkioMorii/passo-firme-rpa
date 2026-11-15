@@ -1,116 +1,122 @@
-"""Orquestração de lote, decisão, integração e trilha de auditoria."""
+"""Robô de triagem. Por padrão só planeja alterações (dry-run)."""
 from __future__ import annotations
-
 import json
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-
 from .api import APIClient, APIError
-from .rules import calcular_prioridade, classe_principal, duplicado, validar
+from .rules import eh_duplicado, principal, prioridade, validar
 
 
-def agora_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def normalizar(s: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
+
+
+def decidir_responsavel(resposta: str) -> str | None:
+    """Somente sugestões explícitas do assistente; indefinição exige revisão humana."""
+    texto = normalizar(resposta)
+    if "proprietario" in texto:
+        return "proprietario"
+    if "concessionaria" in texto:
+        return "concessionaria"
+    if "prefeitura" in texto:
+        return "prefeitura"
+    return None
+
+
+def sintetizar_fontes(fontes: list) -> str:
+    titulos = []
+    for fonte in fontes:
+        if isinstance(fonte, dict) and isinstance(fonte.get("titulo"), str):
+            titulos.append(fonte["titulo"].strip())
+    return "; ".join(titulos)[:200]
 
 
 class RoboTriagem:
-    def __init__(self, cliente: APIClient, pasta_logs: Path, pasta_saida: Path, limite_confianca: float = 0.65):
-        self.cliente = cliente
-        self.pasta_logs = Path(pasta_logs)
-        self.pasta_saida = Path(pasta_saida)
-        self.limite_confianca = limite_confianca
-        self.pasta_logs.mkdir(parents=True, exist_ok=True)
-        self.pasta_saida.mkdir(parents=True, exist_ok=True)
-        self.execucao_id = uuid.uuid4().hex[:12]
+    def __init__(self, api: APIClient, log_dir: Path, *, aplicar=False, limiar=.65):
+        self.api = api
+        self.aplicar = aplicar
+        self.limiar = limiar
+        self.log_dir = Path(log_dir)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.id_execucao = uuid.uuid4().hex[:12]
 
-    def _auditar(self, **campos):
-        # Nunca incluir nome, texto livre do cidadão, foto, posição ou token.
-        registro = {"momento": agora_iso(), "execucao_id": self.execucao_id, **campos}
-        with (self.pasta_logs / "auditoria.jsonl").open("a", encoding="utf-8") as arquivo:
-            arquivo.write(json.dumps(registro, ensure_ascii=False) + "\n")
+    def _log(self, **campos):
+        # Sem foto, GPS, descrição, texto da IA ou token. IDs técnicos são os únicos identificadores.
+        evento = {"momento": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                  "execucao_id": self.id_execucao, "aplicar": self.aplicar, **campos}
+        with (self.log_dir / "auditoria.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(evento, ensure_ascii=False) + "\n")
 
-    def _registrar_saida(self, relato: dict, faixa: str, pontuacao: int, fontes: list):
-        # Arquivo estruturado consumível por outro componente, sem dados pessoais.
-        saida = {
-            "relato_id": relato["id"], "status": "encaminhado",
-            "prioridade": pontuacao, "faixa_prioridade": faixa,
-            "distrito": str(relato.get("distrito", "nao_informado")),
-            "fontes_assistente": fontes,
-            "canal": "simulado", "integracao": "arquivo_estruturado",
-            "protocolo_simulado": f"DEMO-{relato['id']}",
-        }
-        caminho = self.pasta_saida / f"relato_{relato['id']}.json"
-        temporario = caminho.with_suffix(".tmp")
-        temporario.write_text(json.dumps(saida, indent=2, ensure_ascii=False), encoding="utf-8")
-        temporario.replace(caminho)
-
-    def executar(self) -> dict:
-        contagem = {"itens": 0, "sucessos": 0, "falhas": 0,
-                    "encaminhados": 0, "revisoes": 0, "descartados": 0}
+    def executar(self):
+        totais = {"itens": 0, "encaminhados": 0, "revisoes": 0, "descartados": 0,
+                  "falhas": 0, "sucessos": 0}
         try:
-            todos = self.cliente.listar_relatos()
-        except APIError as erro:
-            self._auditar(evento="erro_lote", codigo=str(erro))
+            novos = self.api.listar(status="recebido", limite=200)
+            enviados = self.api.listar(status="encaminhado", limite=200)
+            concluidos = self.api.listar(status="resolvido", limite=200)
+        except APIError as exc:
+            self._log(evento="falha_lote", erro=str(exc))
             raise
-        # Os relatos novos são processados cronologicamente; idempotência por status.
-        novos = [x for x in todos if str(x.get("status", "")).lower() == "recebido"]
-        novos.sort(key=lambda x: (str(x.get("criado_em", "")), str(x.get("id", ""))))
-        aceitos = [x for x in todos if x.get("status") in {"encaminhado", "resolvido"}]
-        for relato in novos:
-            contagem["itens"] += 1
-            relato_id = relato.get("id")
+        # A API entrega do mais novo ao mais antigo; inverter para deduplicar cronologicamente.
+        novos.sort(key=lambda r: (str(r.get("criado_em", "")), str(r.get("id", ""))))
+        anteriores = enviados + concluidos
+        if len(novos) == 200:
+            self._log(evento="aviso_limite_get", limite=200,
+                      nota="Mais relatos podem estar pendentes; executar novo lote")
+        for r in novos:
+            totais["itens"] += 1
+            ident = r.get("id")
+            etapa = "inicio"
             try:
-                problemas = validar(relato)
-                classe, confianca = classe_principal(relato)
-                if problemas:
-                    status, motivo = "revisao_humana", ",".join(problemas)
-                    payload = {"status": status, "prioridade": None, "motivo": motivo}
-                elif duplicado(relato, aceitos):
-                    status, motivo = "descartado", "possivel_duplicidade_espacial_temporal"
-                    payload = {"status": status, "prioridade": None, "motivo": motivo}
-                elif confianca < self.limite_confianca:
-                    status, motivo = "revisao_humana", "baixa_confianca"
-                    payload = {"status": status, "prioridade": None, "motivo": motivo}
+                erros = validar(r)
+                classe, confianca = principal(r)
+                ponto = None
+                responsavel = None
+                fonte = ""
+                if erros:
+                    destino, motivo = "revisao_humana", ",".join(erros)
+                elif eh_duplicado(r, anteriores):
+                    destino, motivo = "descartado", "possivel_duplicidade"
+                elif confianca < self.limiar:
+                    destino, motivo = "revisao_humana", "baixa_confianca"
                 else:
-                    pontuacao, faixa = calcular_prioridade(relato)
-                    resposta = self.cliente.pedir_orientacao(classe, str(relato.get("distrito", "nao_informado")))
+                    ponto = prioridade(r)
+                    resposta = self.api.perguntar(classe)
                     if resposta["recusa"]:
-                        status, motivo = "revisao_humana", "assistente_recusou"
-                        payload = {"status": status, "prioridade": None, "motivo": motivo}
+                        destino, motivo = "revisao_humana", "assistente_recusou"
                     else:
-                        status, motivo = "encaminhado", "triagem_automatica"
-                        payload = {
-                            "status": status, "prioridade": pontuacao,
-                            "faixa_prioridade": faixa, "motivo": motivo,
-                            "encaminhamento": {
-                                "canal": "simulado", "protocolo_simulado": f"DEMO-{relato_id}",
-                                "base_legal": resposta["fontes"],
-                                "orientacao": resposta["resposta"],
-                            },
-                        }
-                self.cliente.atualizar_relato(relato_id, payload)
-                contagem["sucessos"] += 1
-                if status == "encaminhado":
-                    contagem["encaminhados"] += 1
-                    aceitos.append(relato)
-                    # Produção adicional opcional de arquivo para o painel / consumidor.
-                    # Se falhar, o PATCH continua válido; o erro fica registrado para reparo.
-                    try:
-                        self._registrar_saida(relato, faixa, pontuacao, resposta["fontes"])
-                    except OSError:
-                        self._auditar(evento="erro_exportacao", relato_id=relato_id, codigo="falha_gravacao_arquivo")
-                elif status == "revisao_humana":
-                    contagem["revisoes"] += 1
+                        responsavel = decidir_responsavel(resposta["resposta"])
+                        fonte = sintetizar_fontes(resposta["fontes"])
+                        if not responsavel or not fonte:
+                            destino, motivo = "revisao_humana", "responsabilidade_ou_fonte_indefinida"
+                        else:
+                            destino, motivo = "encaminhado", "triagem_automatica"
+                if self.aplicar:
+                    etapa = "patch"
+                    if destino == "encaminhado":
+                        # Transições permitidas: recebido -> em_triagem -> encaminhado.
+                        self.api.alterar(ident, "em_triagem", prioridade=ponto)
+                        etapa = "em_triagem_confirmada"
+                        self.api.alterar(ident, "encaminhado", responsavel=responsavel, base_legal=fonte)
+                    else:
+                        self.api.alterar(ident, destino)
+                totais["sucessos"] += 1
+                if destino == "encaminhado":
+                    totais["encaminhados"] += 1
+                    anteriores.append(r)
+                elif destino == "revisao_humana":
+                    totais["revisoes"] += 1
                 else:
-                    contagem["descartados"] += 1
-                self._auditar(evento="relato_processado", relato_id=relato_id,
-                              resultado=status, motivo=motivo)
-            except (APIError, KeyError, TypeError, ValueError, OSError) as erro:
-                contagem["falhas"] += 1
-                self._auditar(evento="erro_item", relato_id=relato_id,
-                              codigo=str(erro) if isinstance(erro, APIError) else type(erro).__name__)
-                # Não marca relato como concluído se a atualização falhar.
+                    totais["descartados"] += 1
+                self._log(evento="relato_processado", relato_id=ident, resultado=destino,
+                          motivo=motivo, prioridade=ponto)
+            except (APIError, TypeError, KeyError, ValueError, OSError) as exc:
+                totais["falhas"] += 1
+                self._log(evento="erro_relato", relato_id=ident, etapa=etapa,
+                          erro=str(exc) if isinstance(exc, APIError) else type(exc).__name__)
+                # Se falhar após em_triagem, precisa de conciliação manual; não simular sucesso.
                 continue
-        self._auditar(evento="resumo_execucao", **contagem)
-        return {"execucao_id": self.execucao_id, **contagem}
+        self._log(evento="resumo_execucao", **totais)
+        return {"execucao_id": self.id_execucao, "modo": "aplicar" if self.aplicar else "dry_run", **totais}
