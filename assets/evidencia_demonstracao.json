@@ -1,7 +1,7 @@
 {
   "nota": "Demonstração local com dados inteiramente fictícios. Não comprova integração no MVP público.",
   "primeira_execucao": {
-    "execucao_id": "a8b5860f8ab0",
+    "execucao_id": "3b44f9cc1b4e",
     "itens": 5,
     "sucessos": 5,
     "falhas": 0,
@@ -10,7 +10,7 @@
     "descartados": 1
   },
   "segunda_execucao_idempotente": {
-    "execucao_id": "d847fcbed039",
+    "execucao_id": "c28de1fdf669",
     "itens": 0,
     "sucessos": 0,
     "falhas": 0,

@@ -1,6 +1,5 @@
-"""Cliente HTTP simples, com retentativas limitadas e timeout."""
+"""Cliente HTTP para FastAPI do Passo Firme, contrato de 15/11/2026 (GitHub main)."""
 from __future__ import annotations
-
 import json
 import time
 from urllib.error import HTTPError, URLError
@@ -9,65 +8,73 @@ from urllib.request import Request, urlopen
 
 
 class APIError(Exception):
-    """Falha de comunicação ou contrato com a API do MVP."""
+    pass
 
 
 class APIClient:
-    def __init__(self, base_url: str, token: str = "", timeout: float = 5.0,
-                 tentativas: int = 3, espera: float = 0.25):
+    def __init__(self, base_url: str, token: str = "", timeout=5.0, tentativas=3, espera=0.15):
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
         self.tentativas = max(1, tentativas)
         self.espera = max(0.0, espera)
 
-    def _requisicao(self, metodo: str, caminho: str, payload: dict | None = None):
-        corpo = json.dumps(payload, ensure_ascii=False).encode("utf-8") if payload is not None else None
+    def _request(self, metodo: str, rota: str, body: dict | None = None):
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-        ultima_falha = ""
-        for tentativa in range(1, self.tentativas + 1):
-            req = Request(self.base_url + caminho, data=corpo, method=metodo, headers=headers)
+            headers["Authorization"] = "Bearer " + self.token
+        ultima = ""
+        for n in range(self.tentativas):
+            req = Request(self.base_url + rota, data=data, headers=headers, method=metodo)
             try:
                 with urlopen(req, timeout=self.timeout) as response:
                     raw = response.read()
                     return json.loads(raw.decode("utf-8")) if raw else {}
-            except HTTPError as erro:
-                ultima_falha = f"HTTP_{erro.code}"
-                if erro.code not in {429, 500, 502, 503, 504}:
-                    raise APIError(ultima_falha) from None
+            except HTTPError as exc:
+                ultima = f"HTTP_{exc.code}"
+                if exc.code not in {429, 500, 502, 503, 504}:
+                    raise APIError(ultima) from None
             except (URLError, TimeoutError, OSError):
-                ultima_falha = "conexao_indisponivel"
+                ultima = "conexao_indisponivel"
             except (ValueError, UnicodeDecodeError):
-                raise APIError("resposta_json_invalida") from None
-            if tentativa < self.tentativas:
-                time.sleep(self.espera * (2 ** (tentativa - 1)))
-        raise APIError(f"falha_apos_{self.tentativas}_tentativas:{ultima_falha}")
+                raise APIError("json_invalido") from None
+            if n+1 < self.tentativas:
+                time.sleep(self.espera * 2**n)
+        raise APIError(f"{ultima}_apos_{self.tentativas}_tentativas")
 
-    def listar_relatos(self) -> list[dict]:
-        # Consulta TODOS para detectar duplicatas contra relatos já encaminhados.
-        resultado = self._requisicao("GET", "/relatos")
-        dados = resultado if isinstance(resultado, list) else resultado.get("relatos") if isinstance(resultado, dict) else None
-        if not isinstance(dados, list) or not all(isinstance(x, dict) for x in dados):
-            raise APIError("contrato_relato_invalido")
-        return dados
-
-    def pedir_orientacao(self, classe: str, distrito: str) -> dict:
-        # Não envia foto, GPS ou dados pessoais ao assistente.
-        pergunta = f"Qual o encaminhamento administrativo recomendado para barreira do tipo {classe}?"
-        payload = {"pergunta": pergunta, "contexto": {"tipo_barreira": classe, "distrito": distrito}}
-        resposta = self._requisicao("POST", "/assistente", payload)
-        if not isinstance(resposta, dict) or not isinstance(resposta.get("recusa"), bool):
-            raise APIError("contrato_assistente_invalido")
-        if not resposta["recusa"] and (not isinstance(resposta.get("resposta"), str) or not isinstance(resposta.get("fontes"), list)):
-            raise APIError("contrato_assistente_invalido")
+    def listar(self, status: str | None = None, limite=200) -> list[dict]:
+        params = {"limite": min(200, max(1, int(limite)))}
+        if status:
+            params["status"] = status
+        resposta = self._request("GET", "/relatos?" + urlencode(params))
+        if not isinstance(resposta, list) or not all(isinstance(r, dict) for r in resposta):
+            raise APIError("formato_get_relatos_invalido")
         return resposta
 
-    def atualizar_relato(self, id_relato: int | str, dados: dict) -> dict:
-        if not str(id_relato).isdigit():
-            raise APIError("id_relato_invalido")
-        resposta = self._requisicao("PATCH", f"/relatos/{id_relato}/status", dados)
-        if not isinstance(resposta, dict):
-            raise APIError("contrato_atualizacao_invalido")
+    def perguntar(self, classe: str) -> dict:
+        # A palavra 'calçada' ativa a base jurídica no assistente simulado da API.
+        resposta = self._request("POST", "/assistente", {
+            "pergunta": f"Quem é responsável por consertar a calçada quando há {classe.replace('_', ' ')}?"
+        })
+        if (not isinstance(resposta, dict) or not isinstance(resposta.get("recusa"), bool)
+                or not isinstance(resposta.get("resposta"), str)
+                or not isinstance(resposta.get("fontes"), list)):
+            raise APIError("formato_assistente_invalido")
         return resposta
+
+    def alterar(self, relato_id: int | str, status: str, prioridade: int | None = None,
+                responsavel: str | None = None, base_legal: str | None = None) -> dict:
+        if not str(relato_id).isdigit():
+            raise APIError("id_invalido")
+        dados = {"status": status}
+        if prioridade is not None:
+            dados["prioridade"] = prioridade
+        if responsavel:
+            dados["responsavel"] = responsavel
+        if base_legal:
+            dados["base_legal"] = base_legal[:200]
+        resp = self._request("PATCH", f"/relatos/{relato_id}/status", dados)
+        if not isinstance(resp, dict) or resp.get("status") != status:
+            raise APIError("resposta_patch_invalida")
+        return resp

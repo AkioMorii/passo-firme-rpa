@@ -1,0 +1,65 @@
+{
+  "api": "mock-v0-contratual",
+  "aviso": "DADOS FICTÍCIOS: não comprova integração Azure",
+  "primeira_execucao": {
+    "execucao_id": "1e4e3a01c853",
+    "modo": "aplicar",
+    "itens": 5,
+    "encaminhados": 2,
+    "revisoes": 2,
+    "descartados": 1,
+    "falhas": 0,
+    "sucessos": 5
+  },
+  "segunda_execucao": {
+    "execucao_id": "059e906347b7",
+    "modo": "aplicar",
+    "itens": 0,
+    "encaminhados": 0,
+    "revisoes": 0,
+    "descartados": 0,
+    "falhas": 0,
+    "sucessos": 0
+  },
+  "status_finais": [
+    {
+      "id": 101,
+      "status": "encaminhado",
+      "prioridade": 5
+    },
+    {
+      "id": 102,
+      "status": "descartado",
+      "prioridade": null
+    },
+    {
+      "id": 103,
+      "status": "revisao_humana",
+      "prioridade": null
+    },
+    {
+      "id": 104,
+      "status": "revisao_humana",
+      "prioridade": null
+    },
+    {
+      "id": 105,
+      "status": "encaminhado",
+      "prioridade": 3
+    }
+  ],
+  "encaminhamentos_simulados": [
+    {
+      "relato_id": 101,
+      "responsavel": "proprietario",
+      "base_legal": "Lei Municipal 15.442/2011",
+      "protocolo_simulado": "SIM-101"
+    },
+    {
+      "relato_id": 105,
+      "responsavel": "proprietario",
+      "base_legal": "Lei Municipal 15.442/2011",
+      "protocolo_simulado": "SIM-105"
+    }
+  ]
+}

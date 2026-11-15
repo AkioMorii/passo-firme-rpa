@@ -1,114 +1,99 @@
-"""Regras determinísticas de triagem, auditáveis e independentes da API."""
+"""Regras da triagem compatíveis com o contrato v0 da API Passo Firme."""
 from __future__ import annotations
-
 from datetime import datetime, timezone
 from math import asin, cos, radians, sin, sqrt
-from urllib.parse import urlparse
 
-SEVERIDADE = {
-    "buraco": 85,
-    "degrau": 75,
-    "desnivel": 75,
-    "desnível": 75,
-    "piso_tatil": 65,
-    "piso tátil": 65,
-    "obstaculo": 55,
-    "obstáculo": 55,
-    "veiculo": 50,
-    "veículo": 50,
+# Hipóteses de triagem para o protótipo, NÃO critérios oficiais.
+PRIORIDADES = {
+    "buraco": 5,
+    "degrau_desnivel": 4,
+    "piso_tatil": 4,
+    "obstaculo": 3,
+    "veiculo_na_calcada": 3,
 }
 
 
-def classe_principal(relato: dict) -> tuple[str | None, float | None]:
-    """Seleciona a detecção mais confiante, ou os campos simplificados do contrato."""
-    deteccoes = relato.get("deteccoes")
-    if isinstance(deteccoes, list) and deteccoes:
-        candidatas = []
-        for det in deteccoes:
-            if not isinstance(det, dict):
-                continue
-            try:
-                candidatos_conf = float(det.get("confianca"))
-            except (TypeError, ValueError):
-                continue
-            if 0 <= candidatos_conf <= 1:
-                candidatas.append((str(det.get("classe", "")).strip().lower(), candidatos_conf))
-        if candidatas:
-            return max(candidatas, key=lambda v: v[1])
-    classe = relato.get("classe")
-    try:
-        confianca = float(relato.get("confianca"))
-    except (TypeError, ValueError):
-        return (str(classe).strip().lower() if classe is not None else None), None
-    return (str(classe).strip().lower() if classe is not None else None), confianca
+def principal(relato: dict) -> tuple[str | None, float | None]:
+    """Seleciona a detecção mais confiante, conforme RelatoOut.deteccoes."""
+    itens = relato.get("deteccoes")
+    if not isinstance(itens, list):
+        return None, None
+    candidatos = []
+    for item in itens:
+        if not isinstance(item, dict):
+            continue
+        try:
+            conf = float(item["confianca"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 <= conf <= 1:
+            candidatos.append((str(item.get("classe", "")).strip().lower(), conf))
+    return max(candidatos, key=lambda par: par[1]) if candidatos else (None, None)
 
 
 def validar(relato: dict) -> list[str]:
-    """Retorna códigos, sem copiar dados pessoais aos registros de auditoria."""
-    problemas = []
-    foto = relato.get("foto_url")
-    parsed = urlparse(str(foto or ""))
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        problemas.append("foto_ausente_ou_url_invalida")
+    """A API não retorna foto_url; validamos os campos disponíveis, inclusive detecção."""
+    erros = []
     try:
         lat, lon = float(relato["lat"]), float(relato["lon"])
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-            problemas.append("gps_fora_de_faixa")
+            erros.append("gps_invalido")
     except (KeyError, TypeError, ValueError):
-        problemas.append("gps_ausente_ou_invalido")
-    classe, confianca = classe_principal(relato)
-    if classe not in SEVERIDADE:
-        problemas.append("classe_ausente_ou_desconhecida")
-    if confianca is None or not 0 <= confianca <= 1:
-        problemas.append("confianca_invalida")
-    return problemas
+        erros.append("gps_invalido")
+    classe, confianca = principal(relato)
+    if classe is None:
+        erros.append("sem_deteccao")
+    elif classe not in PRIORIDADES:
+        erros.append("classe_nao_reconhecida")
+    if confianca is None:
+        erros.append("confianca_invalida")
+    return erros
 
 
-def parse_horario(valor: str | None) -> datetime | None:
-    if not valor or not isinstance(valor, str):
+def instante(valor: str | None) -> datetime | None:
+    if not isinstance(valor, str):
         return None
     try:
-        hora = datetime.fromisoformat(valor.replace("Z", "+00:00"))
-        if hora.tzinfo is None:
-            hora = hora.replace(tzinfo=timezone.utc)
-        return hora.astimezone(timezone.utc)
+        data = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+        if data.tzinfo is None:
+            data = data.replace(tzinfo=timezone.utc)
+        return data.astimezone(timezone.utc)
     except ValueError:
         return None
 
 
 def distancia_m(a: dict, b: dict) -> float:
-    """Distância geodésica aproximada em metros, via Haversine."""
     lat1, lon1 = radians(float(a["lat"])), radians(float(a["lon"]))
     lat2, lon2 = radians(float(b["lat"])), radians(float(b["lon"]))
-    dif_lat, dif_lon = lat2 - lat1, lon2 - lon1
-    hav = sin(dif_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dif_lon / 2) ** 2
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    hav = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
     return 2 * 6_371_000 * asin(min(1, sqrt(hav)))
 
 
-def duplicado(relato: dict, anteriores: list[dict], raio_m: float = 25, janela_horas: float = 48) -> bool:
-    classe, _ = classe_principal(relato)
-    horario = parse_horario(relato.get("criado_em"))
-    if horario is None or validar(relato):
+def eh_duplicado(relato: dict, anteriores: list[dict], raio_m=25, janela_horas=48) -> bool:
+    data = instante(relato.get("criado_em"))
+    if data is None or validar(relato):
         return False
+    classe, _ = principal(relato)
     for outro in anteriores:
-        if str(outro.get("id")) == str(relato.get("id")):
+        if str(relato.get("id")) == str(outro.get("id")):
             continue
-        if validar(outro) or classe_principal(outro)[0] != classe:
+        if validar(outro) or principal(outro)[0] != classe:
             continue
-        horario_outro = parse_horario(outro.get("criado_em"))
-        if horario_outro is None or abs((horario - horario_outro).total_seconds()) > janela_horas * 3600:
+        anterior_data = instante(outro.get("criado_em"))
+        if anterior_data is None:
+            continue
+        if abs((data - anterior_data).total_seconds()) > janela_horas*3600:
             continue
         if distancia_m(relato, outro) <= raio_m:
             return True
     return False
 
 
-def calcular_prioridade(relato: dict) -> tuple[int, str]:
-    """Pontuação de risco demonstrativa. Não é critério oficial da prefeitura."""
-    classe, _ = classe_principal(relato)
-    base = SEVERIDADE[classe]
-    deteccoes = relato.get("deteccoes", [])
-    bonus = 5 if isinstance(deteccoes, list) and len(deteccoes) > 1 else 0
-    pontuacao = min(100, base + bonus)
-    faixa = "alta" if pontuacao >= 70 else "media" if pontuacao >= 50 else "baixa"
-    return pontuacao, faixa
+def prioridade(relato: dict) -> int:
+    """Escala 1..5, conforme MudancaStatus da API real."""
+    classe, _ = principal(relato)
+    base = PRIORIDADES[classe]
+    det = relato.get("deteccoes")
+    bonus = 1 if isinstance(det, list) and len(det) > 1 else 0
+    return min(5, base + bonus)
